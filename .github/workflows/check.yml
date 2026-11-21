@@ -1,7 +1,7 @@
 name: Check
 
 # Every file here is read the way the engines read it. toolmark loads the signatures and
-# the mappings and writes out the products they name, with their aliases. plessor then
+# the mappings and writes out the products they name, as toolmark names them. plessor then
 # reads each template, and a template that names a vendor and product must name one of
 # those, or say `unseen: true` when the product cannot be seen from outside. Then each
 # template that declares a lab is run against its vulnerable and its patched container
