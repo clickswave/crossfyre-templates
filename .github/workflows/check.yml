@@ -1,0 +1,66 @@
+name: Check
+
+# Every file here is read the way the engines read it. toolmark loads the signatures and
+# the mappings and writes out the products they name, with their aliases. plessor then
+# reads each template, and a template that names a vendor and product must name one of
+# those, or say `unseen: true` when the product cannot be seen from outside. The engines
+# are built from the toolchain's dev branch, which its next release is made from.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: 0
+
+jobs:
+  check:
+    name: signatures, mappings and templates
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: templates
+
+      - uses: actions/checkout@v4
+        with:
+          repository: clickswave/crossfyre-toolchain
+          ref: dev
+          path: toolchain
+
+      # The toolchain's rust-toolchain.toml names the Rust it builds with, and rustup
+      # installs it on the first cargo call.
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            toolchain/target
+          key: engines-${{ runner.os }}-${{ hashFiles('toolchain/Cargo.lock') }}
+          restore-keys: engines-${{ runner.os }}-
+
+      - name: Build toolmark and plessor
+        working-directory: toolchain
+        run: cargo build --locked -p toolmark -p plessor
+
+      - name: Signatures and mappings
+        run: >
+          toolchain/target/debug/toolmark check templates/toolmark
+          --mappings templates/mappings --names "$RUNNER_TEMP/names.txt"
+
+      - name: Templates
+        run: >
+          toolchain/target/debug/plessor check templates/plessor
+          --known "$RUNNER_TEMP/names.txt"

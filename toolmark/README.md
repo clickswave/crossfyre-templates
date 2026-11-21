@@ -45,3 +45,6 @@ The leaves:
 
 `path`, `script` and `not_found` cost a request and are read from the standard tier up.
 A detect leaf can set `confidence`, between 1 and 100.
+
+`toolmark check toolmark --mappings mappings` reads this folder and `mappings/` the way
+toolmark does and names each file it would leave out, with why. Every push runs it.
