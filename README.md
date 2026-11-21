@@ -8,6 +8,7 @@ toolmark reads CVE leads with:
 | [`plessor/`](plessor/) | plessor's templates: exposures, misconfigurations, panels, default logins, vulnerabilities and CVEs, in a subset of the nuclei format. |
 | [`toolmark/`](toolmark/) | toolmark's signatures: one file a product, naming it from headers, cookies, pages, paths, banners and certificates. |
 | [`mappings/`](mappings/) | The other names the CVE data gives a product, and the version maps for products whose CVEs are filed under other numbering. |
+| [`labs/`](labs/) | The vulnerable and patched containers CVE templates are run against on every push. |
 
 Each release of the [toolchain](https://github.com/clickswave/crossfyre-toolchain)
 compiles in a copy of these folders as they stand when it is built.

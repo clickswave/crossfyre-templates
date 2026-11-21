@@ -3,8 +3,10 @@ name: Check
 # Every file here is read the way the engines read it. toolmark loads the signatures and
 # the mappings and writes out the products they name, with their aliases. plessor then
 # reads each template, and a template that names a vendor and product must name one of
-# those, or say `unseen: true` when the product cannot be seen from outside. The engines
-# are built from the toolchain's dev branch, which its next release is made from.
+# those, or say `unseen: true` when the product cannot be seen from outside. Then each
+# template that declares a lab is run against its vulnerable and its patched container
+# (labs/README.md). The engines are built from the toolchain's dev branch, which its next
+# release is made from.
 
 on:
   push:
@@ -27,6 +29,17 @@ jobs:
   check:
     name: signatures, mappings and templates
     runs-on: ubuntu-26.04
+    # The database plessor's daemon keeps its scans in, for the labs.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: lab
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,3 +77,40 @@ jobs:
         run: >
           toolchain/target/debug/plessor check templates/plessor
           --known "$RUNNER_TEMP/names.txt"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: The lab runner's own tests
+        working-directory: templates
+        run: |
+          python -m pip install --quiet pyyaml==6.0.2 pytest==8.3.5
+          python -B -m pytest -q -p no:cacheprovider labs
+
+      - name: plessor's daemon, on that database
+        run: |
+          dir="$RUNNER_TEMP/crossfyre"
+          mkdir -p "$dir"
+          printf '%s\n' '[postgres]' 'backend = "external"' 'host = "127.0.0.1"' \
+            'port = 5432' 'user = "postgres"' 'password = "lab"' 'db_name = "crossfyre"' \
+            > "$dir/config.toml"
+          CROSSFYRE_TOOLCHAIN_DIR="$dir" nohup toolchain/target/debug/plessor --port 4445 \
+            daemon > "$RUNNER_TEMP/daemon.log" 2>&1 &
+          for _ in $(seq 1 60); do
+            grep -q listening "$RUNNER_TEMP/daemon.log" && exit 0
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/daemon.log"
+          exit 1
+
+      - name: Each template with a lab, against its vulnerable and patched containers
+        env:
+          CFX_NO_AUTOSTART: "1"
+        run: >
+          python -B templates/labs/run.py --plessor toolchain/target/debug/plessor
+          --port 4445
+
+      - name: The daemon's log
+        if: failure()
+        run: cat "$RUNNER_TEMP/daemon.log"
